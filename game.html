@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JOUST (Melhorado + Pinball + Pause + Partial Hearts)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css" />
+  <!-- Exemplo de outra biblioteca: GSAP para animações e transições suaves -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/gsap.min.js"></script>
+
+  <style>
+    /* CYBERPUNK PIXEL ART THEME + MELHORIAS DE RESPONSIVIDADE */
+    :root {
+      --primary-color: #ff0080;    /* Vibrant Neon Pink */
+      --secondary-color: #00ffe1;  /* Bright Neon Cyan */
+      --background-color: #0a0a0a; /* Very dark background */
+      --text-color: #ffffff;
+      --overlay-color: rgba(16, 0, 32, 0.85); /* Dark purple with transparency */
+      --border-color: #00ffff;    /* Neon Blue */
+      --accent-color: #ffbf00;    /* Vivid Yellow-Orange for highlights */
+    }
+
+    /* Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Press Start 2P', cursive;
+      overflow: hidden;
+      background: var(--background-color);
+      color: var(--text-color);
+      position: relative;
+    }
+
+    /* Animated Pixelated Background */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0;
+      width: 200%; height: 200%;
+      background: url('https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif') repeat;
+      background-size: auto;
+      image-rendering: pixelated;
+      animation: bgAnimation 60s linear infinite;
+      opacity: 0.3;
+      z-index: -3;
+    }
+    @keyframes bgAnimation {
+      0%   { transform: translate(0, 0); }
+      100% { transform: translate(-50%, -50%); }
+    }
+
+    /* Extra Parallax Layer */
+    #parallax {
+      position: fixed;
+      top: 0; left: 0;
+      width: 150%; height: 150%;
+      background: url('https://media.giphy.com/media/l3vR85PnGsBwu1PFK/giphy.gif') repeat;
+      background-size: auto;
+      image-rendering: pixelated;
+      animation: parallaxAnimation 120s linear infinite;
+      opacity: 0.2;
+      z-index: -2;
+    }
+    @keyframes parallaxAnimation {
+      0%   { transform: translate(0, 0); }
+      100% { transform: translate(-25%, -25%); }
+    }
+
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+      outline: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Overlay (Menu / Instructions) */
+    #overlay, #gameOverOverlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--overlay-color);
+      border: 4px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    #overlay.hidden, #gameOverOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #overlay h1, #gameOverOverlay h1 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px #000000;
+      color: var(--accent-color);
+    }
+    #overlay p, #gameOverOverlay p {
+      font-size: 1rem;
+      margin-bottom: 30px;
+      line-height: 1.6;
+      max-width: 500px;
+    }
+    #overlay button, #gameOverOverlay button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      background: var(--primary-color);
+      border: 3px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+      color: var(--text-color);
+    }
+    #overlay button:hover, #gameOverOverlay button:hover {
+      background: var(--secondary-color);
+      transform: scale(1.1);
+    }
+
+    /* Score, Info & Health UI */
+    #score, #info, #health {
+      position: absolute;
+      left: 10px;
+      font-size: 0.9rem;
+      z-index: 5;
+      text-shadow: 1px 1px 2px #000;
+      font-weight: bold;
+      background: rgba(0, 0, 0, 0.65);
+      padding: 4px 8px;
+      border: 2px solid var(--border-color);
+      border-radius: 4px;
+    }
+    #score {
+      top: 10px;
+    }
+    #info {
+      top: 50px;
+      font-size: 0.8rem;
+    }
+    #health {
+      top: 85px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+    }
+    .heart {
+      margin: 0 2px;
+      color: red;
+    }
+
+    /* Feedback Messages (Center of Screen) */
+    #feedback {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5rem;
+      color: var(--accent-color);
+      text-shadow: 2px 2px 4px #000;
+      opacity: 0;
+      z-index: 6;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Responsiveness */
+    @media (max-width: 600px) {
+      #overlay h1, #gameOverOverlay h1   { font-size: 2rem; }
+      #overlay p,   #gameOverOverlay p   { font-size: 0.8rem; }
+      #overlay button, #gameOverOverlay button {
+        font-size: 0.8rem; padding: 10px 16px;
+      }
+      #score, #info, #health { font-size: 0.8rem; padding: 4px; }
+      #feedback { font-size: 1.2rem; }
+    }
+
+    /* Pausa / Overlay de Pause (opcional) */
+    #pauseOverlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #pauseOverlay.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #pauseOverlay h2 {
+      color: var(--accent-color);
+      font-size: 2rem;
+      text-shadow: 2px 2px 4px #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="parallax"></div>
+
+  <!-- Overlay / Menu Inicial -->
+  <div id="overlay">
+    <h1>JOUST</h1>
+    <p>
+      <i class="fas fa-gamepad"></i> Use WASD / Arrows ou um Gamepad para mover.<br>
+      <i class="fas fa-arrow-up"></i> Segure Space/Mouse para carregar salto; solte para pular.<br>
+      <i class="fas fa-bolt"></i> (Depois de tocar a 1ª plataforma) seu salto é guiado até a próxima!<br>
+      <i class="fas fa-lightbulb"></i> Bumpers agora são ativados apenas por inimigos.<br>
+      <i class="fas fa-heart"></i> Você tem 3 corações (cada com 4 hits). Se perder todos, Game Over!<br>
+      <i class="fas fa-pause"></i> Aperte ESC para pausar/resumir.
+    </p>
+    <button id="startBtn"><i class="fas fa-play"></i> Play!</button>
+    <p id="highScoreDisplay"></p>
+  </div>
+
+  <!-- Overlay / Game Over -->
+  <div id="gameOverOverlay" class="hidden">
+    <h1>GAME OVER</h1>
+    <p id="finalScore"></p>
+    <button id="retryBtn">Try Again</button>
+  </div>
+
+  <!-- Overlay / Pause -->
+  <div id="pauseOverlay">
+    <h2>PAUSED - Press any key to Resume</h2>
+  </div>
+
+  <!-- HUD -->
+  <div id="score"><i class="fas fa-star"></i> Score: 0</div>
+  <div id="info"><i class="fas fa-info-circle"></i> Jumps: 0 | Level: 1</div>
+  <div id="health"></div>
+  <div id="feedback"></div>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Exemplo: Poderia usar Babylon.js ou Phaser, mas mantemos Three.js + GSAP -->
+
+  <script>
+  class JoustGame {
+    // ----------------------------------------------------------
+    //             CONFIGURAÇÕES / BALANCEAMENTO
+    // ----------------------------------------------------------
+    static CONFIG = {
+      // Gravidade e pulo
+      gravity: 0.02,
+      flapStrength: 0.55,
+      maxJumpHeight: 12,
+      maxFlapCount: 10,
+      maxChargeTime: 1.2,
+
+      // Piso maior no início
+      groundExtra: 40,
+
+      // Movimentação e suavidade
+      horizontalSpeed: 0.25,
+      frictionFactor: 0.92,
+
+      // Bumpers ativados só por inimigos
+      bumperBounce: 0.8,
+      bumperChance: 0.25,
+
+      // Balística guiada
+      jumpHorizontalFactor: 0.8,
+      restitution: 0.65,
+      invincibleDuration: 5,
+
+      // Base de inimigos / spawn
+      baseEnemySpeed: 4.5,
+      enemySpawnInterval(score) {
+        const minInterval = 0.5,
+              maxInterval = 1.8;
+        const k = 0.01, m = 500;
+        const f = 1 / (1 + Math.exp(-k * (score - m)));
+        return minInterval + (maxInterval - minInterval) * (1 - f);
+      },
+      powerUpSpawnInterval: 14,
+
+      // Score
+      scoreIncrement: 20,
+
+      // Dificuldade progressiva
+      getDifficultyFactor(yPos) {
+        return Math.min(yPos / 50, 2);
+      },
+
+      // Plataformas e breakables
+      breakableLifetime: 0.8,
+      bouncerFactor: 1.5,
+      doubleJumpDuration: 10,
+
+      // Níveis
+      levelThreshold: 500,
+      environmentColors: [0x111111, 0x331133, 0x110033, 0x112233, 0x332211],
+
+      // Câmera
+      cameraDamping: 0.05,
+      cameraOffsetY: 4
+    };
+
+    constructor() {
+      this.state = {
+        gameState: "start", // playing, paused, gameover
+
+        // Three.js
+        scene: null,
+        camera: null,
+        renderer: null,
+        clock: null,
+
+        // Player
+        player: null,
+        playerVelocityX: 0,
+        playerVelocityY: 0,
+        flapCount: 0,
+        isCharging: false,
+        jumpCharge: 0,
+
+        // Flags
+        firstPlatformTouched: false,
+        invincible: false,
+        invincibleTimer: 0,
+        hasShield: false,
+        shieldHits: 0,
+        coinMagnet: false,
+        slowMotion: false,
+        slowMotionTimer: 0,
+        hasDoubleJump: false,
+        doubleJumpTimer: 0,
+
+        // Saúde (12 hits no total => 3 corações * 4)
+        // cada hit remove 1 "segment".
+        healthSegments: 12,
+        maxHealthSegments: 12,
+
+        // Listas de objetos
+        platforms: [],
+        coins: [],
+        bumpers: [],
+        enemies: [],
+        powerUps: [],
+        explosions: [],
+        enemyPool: [],
+        powerUpPool: [],
+
+        // Score
+        score: 0,
+        level: 1,
+        spawnTimer: 0,
+        powerUpTimer: 0,
+
+        groundY: 0,
+        keys: {},
+      };
+
+      // UI
+      this.ui = {
+        overlayEl: document.getElementById('overlay'),
+        startBtn: document.getElementById('startBtn'),
+        highScoreDisplay: document.getElementById('highScoreDisplay'),
+
+        gameOverOverlayEl: document.getElementById('gameOverOverlay'),
+        finalScoreEl: document.getElementById('finalScore'),
+        retryBtn: document.getElementById('retryBtn'),
+
+        scoreDisplay: document.getElementById('score'),
+        infoDisplay: document.getElementById('info'),
+        healthDisplay: document.getElementById('health'),
+        feedbackEl: document.getElementById('feedback'),
+
+        pauseOverlay: document.getElementById('pauseOverlay'),
+      };
+
+      // Sons
+      this.sfx = {
+        flap: new Audio("https://cdn.pixabay.com/download/audio/2021/10/07/audio_b4c637b92a.mp3?filename=flap-14000.mp3"),
+        enemyDefeat: new Audio("https://cdn.pixabay.com/download/audio/2021/10/06/audio_7b2d274dd8.mp3?filename=pop-143608.mp3"),
+        powerUp: new Audio("https://cdn.pixabay.com/download/audio/2021/10/20/audio_2017a48d60.mp3?filename=powerup-6906.mp3"),
+        gameOver: new Audio("https://cdn.pixabay.com/download/audio/2021/10/07/audio_125e4a3f25.mp3?filename=game-over-14080.mp3"),
+        bumper: new Audio("https://cdn.pixabay.com/download/audio/2022/08/19/audio_687162be43.mp3?filename=jump-124626.mp3")
+      };
+
+      this.init();
+    }
+
+    // ----------------------------------------------------------
+    //                     INICIALIZAÇÃO
+    // ----------------------------------------------------------
+    init() {
+      this.initThreeJS();
+      this.initListeners();
+      this.initScene();
+      this.showHighScore();
+      this.updateHealthUI();
+    }
+
+    initThreeJS() {
+      const st = this.state;
+      st.scene = new THREE.Scene();
+      st.scene.background = new THREE.Color(0x000000);
+
+      st.camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      st.camera.position.set(0, 5, 25);
+      st.camera.lookAt(0, 5, 0);
+
+      st.renderer = new THREE.WebGLRenderer({ antialias: false });
+      st.renderer.setPixelRatio(window.devicePixelRatio);
+      st.renderer.setSize(window.innerWidth, window.innerHeight);
+      st.renderer.domElement.style.imageRendering = 'pixelated';
+      document.body.appendChild(st.renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      st.scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+      directionalLight.position.set(5, 10, 10);
+      st.scene.add(directionalLight);
+
+      st.clock = new THREE.Clock();
+    }
+
+    initListeners() {
+      window.addEventListener('resize', () => this.onWindowResize());
+      window.addEventListener('keydown', e => this.onKeyDown(e));
+      window.addEventListener('keyup', e => this.onKeyUp(e));
+      window.addEventListener('mousedown', () => this.onMouseDown());
+      window.addEventListener('mouseup', () => this.onMouseUp());
+
+      this.ui.startBtn.addEventListener('click', () => this.startGame());
+      this.ui.retryBtn.addEventListener('click', () => this.resetGameAndPlay());
+
+      // Evita scroll na barra de espaço
+      window.addEventListener('keydown', (e)=>{
+        if(e.code==="Space" && this.state.gameState==="playing") {
+          e.preventDefault();
+        }
+      });
+    }
+
+    initScene() {
+      const st = this.state;
+      const bounds = this.getScreenBounds();
+
+      // Ajuste do tamanho do piso (piso maior)
+      const groundWidth = (bounds.maxX - bounds.minX) + JoustGame.CONFIG.groundExtra;
+      const groundGeom = new THREE.PlaneGeometry(groundWidth, 25);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: true });
+      const groundMesh = new THREE.Mesh(groundGeom, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.set(0, st.groundY - 0.5, 0);
+      st.scene.add(groundMesh);
+
+      // Gera plataformas iniciais
+      this.generateInitialPlatforms();
+
+      // Player
+      // Exemplo: Poderíamos usar MeshPhongMaterial para reflexos
+      // Ou GSAP para animar algo na cor
+      const playerGeo = new THREE.BoxGeometry(1,1,1);
+      const playerMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, flatShading: true });
+      st.player = new THREE.Mesh(playerGeo, playerMat);
+      st.player.position.set(0, st.groundY+2, 0);
+      st.scene.add(st.player);
+    }
+
+    // ----------------------------------------------------------
+    //                   EVENTOS / INPUT
+    // ----------------------------------------------------------
+    onWindowResize() {
+      const st = this.state;
+      st.camera.aspect = window.innerWidth / window.innerHeight;
+      st.camera.updateProjectionMatrix();
+      st.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    onKeyDown(e) {
+      const st = this.state;
+      st.keys[e.code] = true;
+
+      // Tecla ESC: pausar / despausar
+      if(e.code==="Escape") {
+        if(st.gameState==="playing") {
+          this.pauseGame();
+        } else if(st.gameState==="paused") {
+          // retoma ao apertar ESC tb, mas user pediu qualquer tecla
+          // mas ok, ESC retoma tb
+          this.resumeGame();
+        }
+      }
+    }
+
+    onKeyUp(e) {
+      this.state.keys[e.code] = false;
+      // Retoma se estiver pausado e apertar qualquer tecla
+      if(this.state.gameState==="paused") {
+        this.resumeGame();
+        return;
+      }
+
+      if(e.code==="Space" && this.state.isCharging) {
+        this.jumpRelease();
+      }
+    }
+
+    onMouseDown() {
+      const st = this.state;
+      if(
+        st.gameState==="playing" &&
+        st.flapCount < (JoustGame.CONFIG.maxFlapCount + (st.hasDoubleJump ? 1 : 0)) &&
+        !st.isCharging
+      ) {
+        this.startCharging();
+      }
+    }
+
+    onMouseUp() {
+      if(this.state.isCharging) {
+        this.jumpRelease();
+      }
+    }
+
+    pauseGame() {
+      this.state.gameState = "paused";
+      this.ui.pauseOverlay.classList.add('show');
+    }
+
+    resumeGame() {
+      this.state.gameState = "playing";
+      this.ui.pauseOverlay.classList.remove('show');
+      // retoma loop
+      this.state.clock.start();
+      this.animate();
+    }
+
+    // ----------------------------------------------------------
+    //           FUNÇÕES DE APOIO
+    // ----------------------------------------------------------
+    startCharging() {
+      this.state.isCharging = true;
+      this.state.jumpCharge = 0;
+    }
+
+    getScreenBounds() {
+      const st = this.state;
+      const vFOV = THREE.MathUtils.degToRad(st.camera.fov);
+      const dist = Math.abs(st.camera.position.z);
+      const height = 2 * Math.tan(vFOV/2) * dist;
+      const width  = height * st.camera.aspect;
+      return {
+        minX: -width/2,
+        maxX:  width/2,
+        minY:  0,
+        maxY:  height
+      };
+    }
+
+    // ----------------------------------------------------------
+    //          PLATAFORMAS / MOEDAS / BUMPERS (PINBALL)
+    // ----------------------------------------------------------
+    generateInitialPlatforms() {
+      const st = this.state;
+      st.platforms = [];
+      st.coins = [];
+      st.bumpers = [];
+
+      const initialCount = 6;
+      let highestY = st.groundY + 4;
+      for(let i=0; i<initialCount; i++){
+        const yPos = highestY + i*3 + Math.random()*1.5;
+        this.createPlatformCoinsBumper(yPos);
+      }
+    }
+
+    createPlatformCoinsBumper(yPos) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+
+      // Dif. progressiva: quanto maior yPos, menor a plataforma
+      const difficulty = cfg.getDifficultyFactor(yPos);
+      const platformWidth = Math.max(4 - difficulty, 1.8);
+
+      const bounds = this.getScreenBounds();
+      const spawnWidth = (bounds.maxX - bounds.minX)*0.5;
+      const xMin = -spawnWidth/2, xMax =  spawnWidth/2;
+      const xPos = THREE.MathUtils.randFloat(xMin+platformWidth, xMax-platformWidth);
+
+      const platGeom = new THREE.BoxGeometry(platformWidth, 0.5, 4);
+      let platformType = "normal";
+      const rnd = Math.random();
+      if     (rnd < 0.15) platformType = "bouncer";
+      else if(rnd < 0.30) platformType = "breakable";
+
+      let platColor = 0x4444ff;
+      if(platformType==="bouncer")   platColor= 0x00ff00;
+      if(platformType==="breakable") platColor= 0xff4444;
+
+      const platMat = new THREE.MeshStandardMaterial({ color: platColor, flatShading:true });
+      const plat = new THREE.Mesh(platGeom, platMat);
+      plat.platformType = platformType;
+      plat.position.set(xPos, yPos, 0);
+
+      if(Math.random()<0.3) {
+        const speedFactor = 0.2 + 0.1*difficulty;
+        plat.moving = true;
+        plat.horizontalSpeed = (Math.random()*speedFactor + 0.05) * (Math.random()<0.5?-1:1);
+      } else {
+        plat.moving = false;
+      }
+
+      if(platformType==="breakable") {
+        plat.isStepped = false;
+        plat.timeAfterStepped = 0;
+      }
+
+      st.scene.add(plat);
+      st.platforms.push(plat);
+
+      // Moedas
+      const coinCount = Math.random()<0.6? 1:2;
+      for(let j=0; j<coinCount; j++){
+        const coinGeo = new THREE.SphereGeometry(0.3,8,8);
+        const coinMat = new THREE.MeshStandardMaterial({ color:0xffd700, flatShading:true });
+        const coin = new THREE.Mesh(coinGeo, coinMat);
+        const coinX = xPos + (Math.random()-0.5)*(platformWidth-1);
+        coin.position.set(coinX,yPos+0.8,0);
+        coin.rotationSpeed= 0.02 + Math.random()*0.03;
+        st.scene.add(coin);
+        st.coins.push(coin);
+      }
+
+      // Bumper de pinball (chance)
+      if(Math.random()< cfg.bumperChance) {
+        const bumpGeo = new THREE.SphereGeometry(0.5,8,8);
+        const bumpMat = new THREE.MeshStandardMaterial({ color: 0xffff00, flatShading:true });
+        const bumper= new THREE.Mesh(bumpGeo, bumpMat);
+        bumper.position.set(xPos, yPos+1.0, 0);
+        bumper.isBumper= true;
+        st.scene.add(bumper);
+        st.bumpers.push(bumper);
+      }
+    }
+
+    generatePlatforms() {
+      const st = this.state;
+      st.platforms = st.platforms.filter(p => p.position.y >= (st.camera.position.y -15));
+      st.coins     = st.coins.filter(c => c.position.y >= (st.camera.position.y -15));
+      st.bumpers   = st.bumpers.filter(b => b.position.y >= (st.camera.position.y -15));
+
+      while(st.platforms.length < 6){
+        let highestY = st.groundY;
+        if(st.platforms.length>0) {
+          highestY = Math.max(...st.platforms.map(p => p.position.y));
+        }
+        const newY= highestY+ 2.5+ Math.random()*1.5;
+        this.createPlatformCoinsBumper(newY);
+      }
+    }
+
+    // ----------------------------------------------------------
+    //           INIMIGOS / POWERUPS / SPAWNS
+    // ----------------------------------------------------------
+    spawnEnemy() {
+      const st = this.state;
+      let enemy;
+      if(st.enemyPool.length>0) {
+        enemy = st.enemyPool.pop();
+      } else {
+        const geoms = [
+          new THREE.BoxGeometry(1,1,1),
+          new THREE.SphereGeometry(0.5,8,8),
+          new THREE.CylinderGeometry(0.5,0.5,1,8),
+          new THREE.ConeGeometry(0.5,1,8)
+        ];
+        const randomGeo = geoms[Math.floor(Math.random()* geoms.length)];
+        enemy = new THREE.Mesh(
+          randomGeo,
+          new THREE.MeshStandardMaterial({ color:0xff5555, flatShading:true })
+        );
+      }
+      enemy.enemyType = (Math.random()<0.7? "chaser" : "walker");
+      enemy.rotationSpeed = 0.02 + Math.random()*0.03;
+      if(enemy.enemyType==="walker") {
+        enemy.walkerSpeed = (Math.random()*0.3+0.2)*(Math.random()<0.5?-1:1);
+      }
+
+      // Spawna lateral
+      const spawnY = st.player.position.y + THREE.MathUtils.randFloat(-3,3);
+      const bounds = this.getScreenBounds();
+      enemy.position.set(bounds.maxX+2, spawnY, 0);
+
+      st.scene.add(enemy);
+      st.enemies.push(enemy);
+    }
+
+    spawnPowerUp() {
+      const st = this.state;
+      let powerUp;
+      if(st.powerUpPool.length>0) {
+        powerUp = st.powerUpPool.pop();
+      } else {
+        const geo= new THREE.BoxGeometry(0.8,0.8,0.8);
+        const mat= new THREE.MeshStandardMaterial({ color:0xffff00, flatShading:true });
+        powerUp = new THREE.Mesh(geo, mat);
+      }
+      const powerUpTypes = ["invincibility","doublejump","shield","coinmagnet","slowmotion"];
+      powerUp.type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
+
+      const bounds = this.getScreenBounds();
+      const spawnY = st.player.position.y + (Math.random()*4-2);
+      powerUp.position.set(bounds.maxX+2, spawnY, 0);
+
+      st.scene.add(powerUp);
+      st.powerUps.push(powerUp);
+    }
+
+    spawnLogic(delta) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      st.spawnTimer -= delta;
+      st.powerUpTimer -= delta;
+
+      const interval= cfg.enemySpawnInterval(st.score);
+      if(st.spawnTimer<=0) {
+        this.spawnEnemy();
+        st.spawnTimer= interval;
+      }
+      if(st.powerUpTimer<=0) {
+        this.spawnPowerUp();
+        st.powerUpTimer= cfg.powerUpSpawnInterval;
+      }
+    }
+
+    // ----------------------------------------------------------
+    //     PULO + TRAJETÓRIA GUIADA (SOMENTE APÓS 1ª PLATAFORMA)
+    // ----------------------------------------------------------
+    jumpRelease() {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      const intensity = Math.min(st.jumpCharge, cfg.maxChargeTime)/cfg.maxChargeTime;
+
+      st.playerVelocityY = cfg.flapStrength*(1+intensity);
+
+      if(st.firstPlatformTouched) {
+        this.guideTrajectoryToPlatform();
+      }
+      st.isCharging = false;
+      st.jumpCharge = 0;
+      st.flapCount++;
+
+      // Som
+      this.sfx.flap.currentTime = 0;
+      this.sfx.flap.play();
+    }
+
+    guideTrajectoryToPlatform() {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      const fallbackVX = st.playerVelocityX * cfg.jumpHorizontalFactor;
+      const targetPlat = this.findNearestPlatformAbove();
+      if(!targetPlat) {
+        st.playerVelocityX= fallbackVX;
+        return;
+      }
+      const dy = targetPlat.position.y - st.player.position.y;
+      const a = -0.5* cfg.gravity, b = st.playerVelocityY, c = -dy;
+      const disc = b*b - 4*a*c;
+      if(disc<0) {
+        st.playerVelocityX= fallbackVX;
+        return;
+      }
+      const sqrtDisc= Math.sqrt(disc);
+      let t1= (-b+ sqrtDisc)/(2*a);
+      let t2= (-b- sqrtDisc)/(2*a);
+      let validT= Math.max(t1,t2);
+      if(validT<0) validT= Math.min(t1,t2);
+      if(validT<=0) {
+        st.playerVelocityX= fallbackVX;
+        return;
+      }
+      const dx= targetPlat.position.x - st.player.position.x;
+      const newVX = dx/ validT;
+      st.playerVelocityX= isNaN(newVX)? fallbackVX : newVX;
+    }
+
+    findNearestPlatformAbove() {
+      const st = this.state;
+      const py = st.player.position.y;
+      const candidates = st.platforms.filter(p => p.position.y> py+0.5);
+      if(!candidates.length) return null;
+      let nearest = candidates[0];
+      let minDist= nearest.position.y- py;
+      for(let i=1; i<candidates.length; i++){
+        const distY = candidates[i].position.y- py;
+        if(distY< minDist) {
+          nearest = candidates[i];
+          minDist= distY;
+        }
+      }
+      return nearest;
+    }
+
+    // ----------------------------------------------------------
+    //       LOOP PRINCIPAL (ANIMATE)
+    // ----------------------------------------------------------
+    animate() {
+      const st = this.state;
+      if(st.gameState!=="playing") {
+        st.renderer.render(st.scene, st.camera);
+        return;
+      }
+      requestAnimationFrame(() => this.animate());
+
+      const delta = st.slowMotion ? st.clock.getDelta()*0.5 : st.clock.getDelta();
+
+      // Atualizações
+      this.updateCharging(delta);
+      this.updatePlayer(delta);
+      this.handleCameraFollow(delta);
+      this.updatePlatforms(delta);
+
+      if(st.player.position.y> st.camera.position.y) {
+        this.generatePlatforms();
+      }
+
+      this.spawnLogic(delta);
+      this.updateEnemies(delta);
+      this.updatePowerUps(delta);
+
+      // Colisões
+      this.checkCollisions();
+
+      // Moedas / magnet
+      this.rotateCoins(delta);
+
+      // Score & level
+      st.score += delta * JoustGame.CONFIG.scoreIncrement * st.level;
+      this.updateLevel();
+      this.updateEnvironmentColor();
+
+      // Powerup timers
+      this.handleInvincibility(delta);
+      this.handleDoubleJumpTimer(delta);
+      this.handleShield();
+      this.handleSlowMotion(delta);
+
+      // UI
+      this.ui.scoreDisplay.textContent= "Score: "+ Math.floor(st.score);
+      this.ui.infoDisplay.textContent= `Jumps: ${st.flapCount} | Level: ${st.level}`;
+
+      // Gamepad
+      this.pollGamepad();
+
+      st.renderer.render(st.scene, st.camera);
+    }
+
+    updateCharging(delta) {
+      const st = this.state;
+      if(st.isCharging) {
+        st.jumpCharge+= delta;
+        if(st.jumpCharge> JoustGame.CONFIG.maxChargeTime) {
+          st.jumpCharge= JoustGame.CONFIG.maxChargeTime;
+        }
+      }
+    }
+
+    updatePlayer(delta) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+
+      let inputX=0;
+      if(st.keys["ArrowLeft"] || st.keys["KeyA"])  inputX-=1;
+      if(st.keys["ArrowRight"]|| st.keys["KeyD"]) inputX+=1;
+
+      if(inputX!==0) {
+        st.playerVelocityX= inputX * cfg.horizontalSpeed * 2;
+      } else {
+        st.playerVelocityX*= cfg.frictionFactor;
+        if(Math.abs(st.playerVelocityX)<0.001) st.playerVelocityX=0;
+      }
+
+      st.playerVelocityY-= cfg.gravity;
+      st.player.position.x += st.playerVelocityX;
+      st.player.position.y += st.playerVelocityY;
+
+      if(st.player.position.y> st.groundY+ cfg.maxJumpHeight) {
+        st.player.position.y= st.groundY+ cfg.maxJumpHeight;
+        st.playerVelocityY=0;
+      }
+
+      if(st.player.position.y< st.groundY+0.5) {
+        st.player.position.y= st.groundY+0.5;
+        st.playerVelocityY=0;
+        st.flapCount=0;
+      }
+
+      this.limitPlayerPosition();
+    }
+
+    limitPlayerPosition() {
+      const st = this.state;
+      const b = this.getScreenBounds();
+      if(st.player.position.x< b.minX) {
+        st.player.position.x= b.minX;
+        st.playerVelocityX=0;
+      } else if(st.player.position.x> b.maxX) {
+        st.player.position.x= b.maxX;
+        st.playerVelocityX=0;
+      }
+      st.player.position.z=0;
+    }
+
+    handleCameraFollow(delta) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      const tx= st.player.position.x;
+      const ty= st.player.position.y + cfg.cameraOffsetY;
+      const dx= tx- st.camera.position.x;
+      const dy= ty- st.camera.position.y;
+      st.camera.position.x += dx* cfg.cameraDamping;
+      st.camera.position.y += dy* cfg.cameraDamping;
+      st.camera.lookAt(
+        st.camera.position.x,
+        st.camera.position.y-4,
+        0
+      );
+    }
+
+    updatePlatforms(delta) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      for(const plat of st.platforms) {
+        if(plat.moving) {
+          plat.position.x += plat.horizontalSpeed* delta;
+          const b= this.getScreenBounds();
+          if(plat.position.x< b.minX+2 || plat.position.x> b.maxX-2) {
+            plat.horizontalSpeed= -plat.horizontalSpeed;
+          }
+        }
+        if(plat.platformType==="breakable" && plat.isStepped) {
+          plat.timeAfterStepped+= delta;
+          if(plat.timeAfterStepped>= cfg.breakableLifetime) {
+            this.createPlatformBreakEffect(plat.position);
+            st.scene.remove(plat);
+            const idx= st.platforms.indexOf(plat);
+            if(idx>=0) st.platforms.splice(idx,1);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------
+    //      MOEDAS, EFEITOS DE QUEBRA
+    // ----------------------------------------------------------
+    rotateCoins(delta) {
+      const st = this.state;
+      for(const c of st.coins) {
+        c.rotation.y += (c.rotationSpeed||0)* (delta*60);
+        if(st.coinMagnet) {
+          const dist = c.position.distanceTo(st.player.position);
+          if(dist<6) {
+            const dir= new THREE.Vector3();
+            dir.subVectors(st.player.position, c.position).normalize();
+            c.position.addScaledVector(dir, delta*2);
+          }
+        }
+      }
+    }
+
+    createPlatformBreakEffect(pos) {
+      const st = this.state;
+      const geo= new THREE.TetrahedronGeometry(0.3,0);
+      const mat= new THREE.MeshStandardMaterial({
+        color:0xff0000, flatShading:true, transparent:true, opacity:1
+      });
+      for(let i=0; i<4; i++){
+        const debris= new THREE.Mesh(geo, mat.clone());
+        debris.position.copy(pos);
+        debris.life=0.8;
+        debris.vx= (Math.random()-0.5)*2;
+        debris.vy= Math.random()*1.5;
+        debris.vz= (Math.random()-0.5)*2;
+        st.scene.add(debris);
+        st.explosions.push(debris);
+      }
+    }
+
+    // ----------------------------------------------------------
+    //   ATUALIZAÇÃO DE INIMIGOS / BUMPERS / POWERUPS
+    // ----------------------------------------------------------
+    updateEnemies(delta) {
+      const st = this.state;
+      const speed = JoustGame.CONFIG.baseEnemySpeed + st.score/600;
+      for(const enemy of st.enemies) {
+        this.checkEnemyBumperCollision(enemy);
+
+        if(enemy.enemyType==="chaser") {
+          const dx= st.player.position.x - enemy.position.x;
+          const dy= st.player.position.y - enemy.position.y;
+          const angle= Math.atan2(dy, dx);
+          enemy.position.x += speed*0.8*Math.cos(angle)* delta;
+          enemy.position.y += speed*0.8*Math.sin(angle)* delta;
+        }
+        else if(enemy.enemyType==="walker") {
+          enemy.position.x += enemy.walkerSpeed* delta;
+        }
+        enemy.rotation.z += (enemy.rotationSpeed||0)* 1.5;
+      }
+      st.enemies = st.enemies.filter(e => {
+        if(e.position.x< this.getScreenBounds().minX-4) {
+          st.scene.remove(e);
+          st.enemyPool.push(e);
+          return false;
+        }
+        return true;
+      });
+    }
+
+    checkEnemyBumperCollision(enemy) {
+      const st = this.state;
+      for(const bump of st.bumpers) {
+        const boxE= new THREE.Box3().setFromObject(enemy);
+        const boxB= new THREE.Box3().setFromObject(bump);
+        if(boxE.intersectsBox(boxB)) {
+          enemy.position.y += 0.3;
+          if(enemy.enemyType==="walker") {
+            enemy.walkerSpeed= -(enemy.walkerSpeed)* JoustGame.CONFIG.bumperBounce;
+          } else {
+            enemy.position.x -= 1*(Math.random()<0.5?-1:1);
+          }
+          this.sfx.bumper.currentTime=0;
+          this.sfx.bumper.play();
+          this.showFeedback("Enemy hit a Bumper!");
+        }
+      }
+    }
+
+    updatePowerUps(delta) {
+      const st = this.state;
+      const speed= JoustGame.CONFIG.baseEnemySpeed;
+      for(const pu of st.powerUps) {
+        pu.position.x -= speed* delta;
+      }
+      st.powerUps= st.powerUps.filter(pu => {
+        if(pu.position.x< this.getScreenBounds().minX-2) {
+          st.scene.remove(pu);
+          st.powerUpPool.push(pu);
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // ----------------------------------------------------------
+    //           COLISÕES E EXPLOSÕES
+    // ----------------------------------------------------------
+    checkCollisions() {
+      this.checkPlatformCollisions();
+      this.checkCoinCollisions();
+      this.checkEnemyCollisions();
+      this.checkPowerUpCollisions();
+      this.updateExplosions();
+    }
+
+    checkPlatformCollisions() {
+      const st = this.state;
+      for(const plat of st.platforms) {
+        if(this.intersect(st.player, plat)) {
+          const platTop = plat.position.y + (plat.geometry.parameters.height/2);
+          const playerBottom = st.player.position.y - 0.5;
+          if(
+            st.playerVelocityY<0 &&
+            playerBottom <= (platTop+0.2) &&
+            st.player.position.y> (platTop-0.3)
+          ) {
+            if(plat.platformType==="bouncer") {
+              st.playerVelocityY= Math.abs(st.playerVelocityY)* JoustGame.CONFIG.bouncerFactor + 0.5;
+            } else {
+              st.player.position.y= platTop+0.5;
+              st.playerVelocityY= 0;
+            }
+            st.flapCount=0;
+            st.firstPlatformTouched= true;
+
+            if(plat.platformType==="breakable" && !plat.isStepped) {
+              plat.isStepped= true;
+              plat.timeAfterStepped=0;
+            }
+          }
+        }
+      }
+    }
+
+    checkCoinCollisions() {
+      const st = this.state;
+      for(let i= st.coins.length-1; i>=0; i--){
+        if(this.intersect(st.player, st.coins[i])) {
+          st.score+= 10;
+          this.createCoinPickupEffect(st.coins[i].position);
+          st.scene.remove(st.coins[i]);
+          st.coins.splice(i,1);
+          this.showFeedback("COIN!");
+        }
+      }
+    }
+
+    createCoinPickupEffect(pos) {
+      const st = this.state;
+      const geo= new THREE.SphereGeometry(0.1,4,4);
+      const mat= new THREE.MeshStandardMaterial({ color:0xffff00, flatShading:true });
+      const spark= new THREE.Mesh(geo, mat);
+      spark.position.copy(pos);
+      spark.life=0.5;
+      st.scene.add(spark);
+      st.explosions.push(spark);
+    }
+
+    checkEnemyCollisions() {
+      const st = this.state;
+      for(let i= st.enemies.length-1; i>=0; i--){
+        const e= st.enemies[i];
+        if(this.intersect(st.player, e)) {
+          if(st.player.position.y> e.position.y+0.2 || st.invincible) {
+            this.createExplosion(e.position);
+            st.scene.remove(e);
+            st.enemyPool.push(e);
+            st.enemies.splice(i,1);
+            st.score+= 10;
+            this.sfx.enemyDefeat.currentTime=0;
+            this.sfx.enemyDefeat.play();
+            this.showFeedback("Nice!");
+            st.playerVelocityY= Math.abs(st.playerVelocityY)* JoustGame.CONFIG.restitution+0.3;
+          } else {
+            if(st.hasShield) {
+              st.shieldHits--;
+              this.showFeedback("Shield absorbed hit!");
+              if(st.shieldHits<=0) {
+                st.hasShield=false;
+                if(!st.invincible && !st.hasDoubleJump) {
+                  st.player.material.color.set(0xff00ff);
+                }
+              }
+            } else {
+              this.takeDamage();
+            }
+          }
+        }
+      }
+    }
+
+    checkPowerUpCollisions() {
+      const st = this.state;
+      for(let i= st.powerUps.length-1; i>=0; i--){
+        const pu= st.powerUps[i];
+        if(this.intersect(st.player, pu)) {
+          this.applyPowerUp(pu.type);
+          this.sfx.powerUp.currentTime=0;
+          this.sfx.powerUp.play();
+          st.scene.remove(pu);
+          st.powerUpPool.push(pu);
+          st.powerUps.splice(i,1);
+        }
+      }
+    }
+
+    intersect(a,b) {
+      const boxA= new THREE.Box3().setFromObject(a);
+      const boxB= new THREE.Box3().setFromObject(b);
+      return boxA.intersectsBox(boxB);
+    }
+
+    createExplosion(pos) {
+      const st = this.state;
+      const geo= new THREE.BoxGeometry(0.8,0.8,0.8);
+      const mat= new THREE.MeshStandardMaterial({
+        color:0xffffff, flatShading:true, transparent:true, opacity:0.9
+      });
+      const exp= new THREE.Mesh(geo, mat);
+      exp.position.copy(pos);
+      exp.life=0.8;
+      st.scene.add(exp);
+      st.explosions.push(exp);
+    }
+
+    updateExplosions() {
+      const st = this.state;
+      const dt = st.clock.getDelta();
+      for(let i= st.explosions.length-1; i>=0; i--){
+        const exp= st.explosions[i];
+        exp.life-= dt;
+        exp.scale.multiplyScalar(1+ 2.5*dt);
+        exp.material.opacity= Math.max(exp.life,0);
+        if(exp.life<=0) {
+          st.scene.remove(exp);
+          st.explosions.splice(i,1);
+        }
+      }
+    }
+
+    // ----------------------------------------------------------
+    //                POWER-UPS E EFEITOS
+    // ----------------------------------------------------------
+    applyPowerUp(type) {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      switch(type) {
+        case "invincibility":
+          st.invincible= true;
+          st.invincibleTimer= cfg.invincibleDuration;
+          st.player.material.color.set(0xffffff);
+          this.showFeedback("INVINCIBLE!");
+          break;
+        case "doublejump":
+          st.hasDoubleJump= true;
+          st.doubleJumpTimer= cfg.doubleJumpDuration;
+          st.player.material.color.set(0x00ffff);
+          this.showFeedback("DOUBLE JUMP!");
+          break;
+        case "shield":
+          st.hasShield= true;
+          st.shieldHits= 1;
+          st.player.material.color.set(0x00ff00);
+          this.showFeedback("SHIELD!");
+          break;
+        case "coinmagnet":
+          st.coinMagnet= true;
+          this.showFeedback("COIN MAGNET!");
+          setTimeout(()=> {
+            st.coinMagnet= false;
+          }, 10000);
+          break;
+        case "slowmotion":
+          st.slowMotion= true;
+          st.slowMotionTimer= 6;
+          this.showFeedback("SLOW MOTION!");
+          break;
+      }
+    }
+
+    handleShield() {
+      // Shield absorve hits em checkEnemyCollisions()
+    }
+
+    handleSlowMotion(delta) {
+      const st = this.state;
+      if(st.slowMotion) {
+        st.slowMotionTimer-= delta;
+        if(st.slowMotionTimer<=0) {
+          st.slowMotion= false;
+          this.showFeedback("Speed back to normal!");
+        }
+      }
+    }
+
+    // ----------------------------------------------------------
+    //       SAÚDE: 3 corações * 4 hits = 12 segments
+    // ----------------------------------------------------------
+    takeDamage() {
+      const st = this.state;
+      if(st.invincible) return;
+
+      // perde 1 segment (25% de 1 coração)
+      st.healthSegments--;
+      this.updateHealthUI();
+
+      // Zera score ao tomar dano (opcional)
+      st.score= 0;
+
+      this.showFeedback("Hit by Enemy!");
+      this.sfx.gameOver.currentTime=0;
+      this.sfx.gameOver.play();
+
+      if(st.healthSegments<=0) {
+        this.endGame();
+      }
+    }
+
+    endGame() {
+      this.updateHighScore();
+      this.ui.gameOverOverlayEl.classList.remove('hidden');
+      this.ui.gameOverOverlayEl.style.display='flex';
+      this.ui.finalScoreEl.textContent= `Final Score: ${Math.floor(this.state.score)}`;
+      this.state.gameState= "gameover";
+    }
+
+    handleInvincibility(delta) {
+      const st = this.state;
+      if(st.invincible) {
+        st.invincibleTimer-= delta;
+        if(st.invincibleTimer<=0) {
+          st.invincible= false;
+          if(st.hasDoubleJump) {
+            st.player.material.color.set(0x00ffff);
+          } else if(st.hasShield) {
+            st.player.material.color.set(0x00ff00);
+          } else {
+            st.player.material.color.set(0xff00ff);
+          }
+        }
+      }
+    }
+
+    handleDoubleJumpTimer(delta) {
+      const st = this.state;
+      if(st.hasDoubleJump) {
+        st.doubleJumpTimer-= delta;
+        if(st.doubleJumpTimer<=0) {
+          st.hasDoubleJump= false;
+          if(!st.invincible && !st.hasShield) {
+            st.player.material.color.set(0xff00ff);
+          }
+        }
+      }
+    }
+
+    updateHealthUI() {
+      const st = this.state;
+
+      // 3 corações, cada 4 segments => total 12
+      // st.healthSegments => 0..12
+      // ex: se st.healthSegments= 10 => coracao1=4, coracao2=4, coracao3=2
+
+      let segmentsLeft= st.healthSegments;
+      const heartsHTML = [];
+
+      for(let h=0; h<3; h++) {
+        const segsForHeart = Math.min(4, Math.max(0, segmentsLeft));
+        segmentsLeft-= segsForHeart;
+        if(segsForHeart===4) {
+          // heart full
+          heartsHTML.push(`<i class='fas fa-heart heart'></i>`);
+        } else if(segsForHeart>0) {
+          // partial
+          heartsHTML.push(`<i class='fas fa-heart-broken heart'></i>`); // ou svg parcial
+        } else {
+          // empty
+          heartsHTML.push(`<i class='far fa-heart heart'></i>`);
+        }
+      }
+
+      this.ui.healthDisplay.innerHTML= heartsHTML.join(' ');
+    }
+
+    // ----------------------------------------------------------
+    //                SCORE E NÍVEIS
+    // ----------------------------------------------------------
+    updateLevel() {
+      const st = this.state;
+      st.level= Math.floor(st.score / JoustGame.CONFIG.levelThreshold)+1;
+    }
+
+    updateEnvironmentColor() {
+      const st = this.state;
+      const cfg = JoustGame.CONFIG;
+      const colorIndex= (st.level-1) % cfg.environmentColors.length;
+      st.scene.background= new THREE.Color(cfg.environmentColors[colorIndex]);
+    }
+
+    updateHighScore() {
+      const st = this.state;
+      const storedHS= localStorage.getItem('highScore')||0;
+      if(st.score> storedHS) {
+        localStorage.setItem('highScore', Math.floor(st.score));
+      }
+    }
+
+    showHighScore() {
+      const hs= localStorage.getItem('highScore')||0;
+      this.ui.highScoreDisplay.textContent= "High Score: "+ hs;
+    }
+
+    showFeedback(msg) {
+      const el = this.ui.feedbackEl;
+      el.textContent= msg;
+      el.style.opacity=1;
+      gsap.to(el, {duration:1.2, opacity:0, delay:0.6}); // Exemplo GSAP fade out
+    }
+
+    // ----------------------------------------------------------
+    //            GAME STATE / RESET / RESTART
+    // ----------------------------------------------------------
+    startGame() {
+      this.state.gameState= "playing";
+      this.ui.overlayEl.classList.add('hidden');
+      setTimeout(()=> this.ui.overlayEl.style.display='none',500);
+      this.resetGameAndPlay();
+    }
+
+    resetGameAndPlay() {
+      this.ui.gameOverOverlayEl.classList.add('hidden');
+      this.ui.gameOverOverlayEl.style.display='none';
+      this.resetGame();
+      this.state.clock.start();
+      this.animate();
+    }
+
+    resetGame() {
+      this.updateHighScore();
+      const st = this.state;
+      st.score=0;
+      st.spawnTimer=0;
+      st.powerUpTimer=0;
+      st.level=1;
+
+      st.player.position.set(0, st.groundY+2,0);
+      st.playerVelocityX=0;
+      st.playerVelocityY=0;
+      st.flapCount=0;
+      st.firstPlatformTouched= false;
+
+      st.invincible=false;
+      st.hasDoubleJump=false;
+      st.invincibleTimer=0;
+      st.doubleJumpTimer=0;
+      st.hasShield=false;
+      st.shieldHits=0;
+      st.slowMotion=false;
+      st.coinMagnet=false;
+      st.player.material.color.set(0xff00ff);
+
+      // reseta healthSegments
+      st.healthSegments= st.maxHealthSegments; // 12
+      this.updateHealthUI();
+
+      [...st.enemies, ...st.powerUps, ...st.explosions, ...st.coins, ...st.platforms, ...st.bumpers]
+        .forEach(obj => st.scene.remove(obj));
+      st.enemies=[];
+      st.powerUps=[];
+      st.explosions=[];
+      st.coins=[];
+      st.platforms=[];
+      st.bumpers=[];
+
+      this.generateInitialPlatforms();
+
+      this.ui.scoreDisplay.textContent= "Score: 0";
+      this.ui.infoDisplay.textContent= "Jumps: 0 | Level: 1";
+      st.gameState= "playing";
+    }
+
+    // ----------------------------------------------------------
+    //                    GAMEPAD
+    // ----------------------------------------------------------
+    pollGamepad() {
+      const st = this.state;
+      const gps= navigator.getGamepads();
+      if(gps && gps[0]) {
+        const gp= gps[0];
+        for(let btn of gp.buttons) {
+          if(btn.pressed) {
+            if(
+              st.gameState==="playing" &&
+              st.flapCount< (JoustGame.CONFIG.maxFlapCount+(st.hasDoubleJump?1:0)) &&
+              !st.isCharging
+            ){
+              this.startCharging();
+            }
+            break;
+          }
+        }
+        const axisX= gp.axes[0];
+        if(Math.abs(axisX)> 0.2) {
+          st.playerVelocityX= axisX* JoustGame.CONFIG.horizontalSpeed*2;
+        }
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  //               INICIALIZA E EXECUTA O JOGO
+  // -------------------------------------------------------------
+  const game = new JoustGame();
+  </script>
+</body>
+</html>
